@@ -2,11 +2,12 @@
 
 #include "CustomScript.h"
 #include <list>
+#include <vector>
 
 class ScriptManager
 {
 public:
-	CScript gameScripts[128];
+	std::vector<CScript> gameScripts;
 
 	std::list<char *> scriptMemory;
 

@@ -156,13 +156,8 @@ void CScript::JumpTo(int address)
 		if(this->m_nScriptType == SCRIPT_TYPE_CUSTOM)
 			this->m_dwIp = this->m_dwBaseIp - address;
 		else
-		{
-#if CLEO_VC
-			this->m_dwIp = 0x370E8 - address;
-#else
-			this->m_dwIp = 0x20000 - address;
-#endif
-		}
+			this->m_dwIp = GtaGame::ScriptSize::MainScriptSize - address;
+
 	}
 }
 

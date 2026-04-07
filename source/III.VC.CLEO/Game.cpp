@@ -5,8 +5,15 @@
 #include "Fxt.h"
 #include "CleoVersion.h"
 #include "CleoPlugins.h"
+#include "injector/injector.hpp"
 
 GtaGame game;
+int GtaGame::ScriptSize::NumMainScripts = 128;
+int GtaGame::ScriptSize::NumMissionScripts = 32;
+int GtaGame::ScriptSize::MainScriptSize = GtaGame::ScriptSize::NumMainScripts * 1024;
+int GtaGame::ScriptSize::MissionScriptSize = GtaGame::ScriptSize::NumMissionScripts * 1024;
+int GtaGame::ScriptSize::ScriptSpaceSize = GtaGame::ScriptSize::MainScriptSize + GtaGame::ScriptSize::MissionScriptSize;
+std::vector<char> GtaGame::ScriptSize::aScriptSpace;
 
 #define GAME_VERSION_ID (*(unsigned int *)0x61C11C)
 
@@ -106,14 +113,18 @@ void GtaGame::InitAndPatch()
 	this->Misc.allocatedMemory = new std::set<void *>;
 	this->Misc.openedHandles = new std::set<HANDLE>;
 
+	GtaGame::ScriptSize::SetupScriptSizes();
+	GtaGame::ScriptSize::PatchScriptSizes();
+
 #if CLEO_VC
 	switch(this->Version)
 	{
 	case GAME_V1_0:
 		// Scripts
-		CPatch::SetPointer(0x4504E4, scriptMgr.gameScripts);
-		CPatch::SetPointer(0x450508, scriptMgr.gameScripts);
-		CPatch::SetPointer(0x45050E, (DWORD*)(scriptMgr.gameScripts)+1);
+		scriptMgr.gameScripts.resize(GtaGame::ScriptSize::NumMainScripts);
+		CPatch::SetPointer(0x4504E4, &scriptMgr.gameScripts[0]);
+		CPatch::SetPointer(0x450508, &scriptMgr.gameScripts[0]);
+		CPatch::SetPointer(0x45050E, (DWORD*)(&scriptMgr.gameScripts[0])+1);
 		CPatch::SetInt(0x450527 + 2, sizeof(CScript));
 		CPatch::SetInt(0x45052D + 2, sizeof(CScript));
 		CPatch::RedirectJump(0x450CF0, ScriptManager::InitialiseScript);
@@ -216,9 +227,10 @@ void GtaGame::InitAndPatch()
 		break;
 	case GAME_V1_1:
 		// Scripts
-		CPatch::SetPointer(0x4504E4, scriptMgr.gameScripts);
-		CPatch::SetPointer(0x450508, scriptMgr.gameScripts);
-		CPatch::SetPointer(0x45050E, (DWORD*)(scriptMgr.gameScripts) + 1);
+		scriptMgr.gameScripts.resize(GtaGame::ScriptSize::NumMainScripts);
+		CPatch::SetPointer(0x4504E4, &scriptMgr.gameScripts[0]);
+		CPatch::SetPointer(0x450508, &scriptMgr.gameScripts[0]);
+		CPatch::SetPointer(0x45050E, (DWORD*)(&scriptMgr.gameScripts[0]) + 1);
 		CPatch::SetInt(0x450527 + 2, sizeof(CScript));
 		CPatch::SetInt(0x45052D + 2, sizeof(CScript));
 		CPatch::RedirectJump(0x450CF0, ScriptManager::InitialiseScript);
@@ -321,9 +333,10 @@ void GtaGame::InitAndPatch()
 		break;
 	case GAME_VSTEAM:
 		// Scripts
-		CPatch::SetPointer(0x4503F4, scriptMgr.gameScripts);
-		CPatch::SetPointer(0x450418, scriptMgr.gameScripts);
-		CPatch::SetPointer(0x45041E, (DWORD*)(scriptMgr.gameScripts) + 1);
+		scriptMgr.gameScripts.resize(GtaGame::ScriptSize::NumMainScripts);
+		CPatch::SetPointer(0x4503F4, &scriptMgr.gameScripts[0]);
+		CPatch::SetPointer(0x450418, &scriptMgr.gameScripts[0]);
+		CPatch::SetPointer(0x45041E, (DWORD*)(&scriptMgr.gameScripts[0]) + 1);
 		CPatch::SetInt(0x450437 + 2, sizeof(CScript));
 		CPatch::SetInt(0x45043D + 2, sizeof(CScript));
 		CPatch::RedirectJump(0x450C00, ScriptManager::InitialiseScript);
@@ -431,7 +444,8 @@ void GtaGame::InitAndPatch()
 	{
 	case GAME_V1_0:
 		// Scripts
-		CPatch::SetPointer(0x438809, scriptMgr.gameScripts);
+		scriptMgr.gameScripts.resize(GtaGame::ScriptSize::NumMainScripts);
+		CPatch::SetPointer(0x438809, &scriptMgr.gameScripts[0]);
 		CPatch::SetInt(0x43882A, sizeof(CScript));
 		CPatch::RedirectJump(0x4386C0, ScriptManager::InitialiseScript);
 		CPatch::RedirectJump(0x439500, ScriptManager::ProcessScriptCommand);
@@ -456,7 +470,8 @@ void GtaGame::InitAndPatch()
 		this->Scripts.OpcodeHandlers[11] = (OpcodeHandler)0x589D00;
 		this->Scripts.pActiveScriptsList = (CScript **)0x8E2BF4;
 		this->Scripts.Params = (tScriptVar *)0x6ED460;
-		this->Scripts.Space = (char *)0x74B248;
+		//this->Scripts.Space = (char*)(0x4387A0 + 3);
+		this->Scripts.Space = &GtaGame::ScriptSize::aScriptSpace[0];
 		this->Scripts.pNumOpcodesExecuted = (unsigned short *)0x95CCA6;
 		this->Scripts.usedObjectArray = (tUsedObject*)0x6E69E0;
 		// Text
@@ -521,7 +536,8 @@ void GtaGame::InitAndPatch()
 		break;
 	case GAME_V1_1:
 		// Scripts
-		CPatch::SetPointer(0x438809, scriptMgr.gameScripts);
+		scriptMgr.gameScripts.resize(GtaGame::ScriptSize::NumMainScripts);
+		CPatch::SetPointer(0x438809, &scriptMgr.gameScripts[0]);
 		CPatch::SetInt(0x43882A, sizeof(CScript));
 		CPatch::RedirectJump(0x4386C0, ScriptManager::InitialiseScript);
 		CPatch::RedirectJump(0x439500, ScriptManager::ProcessScriptCommand);
@@ -611,7 +627,8 @@ void GtaGame::InitAndPatch()
 		break;
 	case GAME_VSTEAM:
 		// Scripts
-		CPatch::SetPointer(0x438809, scriptMgr.gameScripts);
+		scriptMgr.gameScripts.resize(GtaGame::ScriptSize::NumMainScripts);
+		CPatch::SetPointer(0x438809, &scriptMgr.gameScripts[0]);
 		CPatch::SetInt(0x43882A, sizeof(CScript));
 		CPatch::RedirectJump(0x4386C0, ScriptManager::InitialiseScript);
 		CPatch::RedirectJump(0x439500, ScriptManager::ProcessScriptCommand);
@@ -707,6 +724,7 @@ void GtaGame::InitAndPatch()
 void GtaGame::InitScripts_OnGameInit()
 {
 	LOGL(LOG_PRIORITY_GAME_EVENT, "--Game Init--");
+
 	scriptMgr.UnloadScripts();
 	CustomText::Unload();
 	game.Events.pfInitScripts_OnGameInit();
@@ -795,4 +813,351 @@ void GtaGame::OnMenuDrawing(float x, float y, wchar_t *text)
 		CleoPlugins::numLoadedPlugins, CleoPlugins::numLoadedPlugins == 1? L"plugin" : L"plugins") :
 	swprintf(line, L"%d %s loaded", CleoPlugins::numLoadedPlugins, CleoPlugins::numLoadedPlugins == 1 ? L"plugin" : L"plugins");
 	game.Font.PrintString(ScreenCoord(30.0f), (float)*game.Screen.Height - ScreenCoord(20.0f), line);
+}
+
+void GtaGame::ScriptSize::SetupScriptSizes()
+{
+#if CLEO_VC
+	NumMainScripts = 128;
+	NumMissionScripts = 32;
+	MainScriptSize = 0x370E8;
+	MissionScriptSize = 0x88B8;
+	ScriptSpaceSize = MainScriptSize + MissionScriptSize;
+#else
+	NumMainScripts = 128;
+	NumMissionScripts = 32;
+
+	if (game.Version == GAME_V1_0)
+	{
+		NumMainScripts *= 10;
+		NumMissionScripts *= 10;
+	}
+
+	MainScriptSize = NumMainScripts * 1024;
+	MissionScriptSize = NumMissionScripts * 1024;
+	ScriptSpaceSize = MainScriptSize + MissionScriptSize;
+#endif
+}
+
+void GtaGame::ScriptSize::PatchScriptSizes()
+{
+#if CLEO_VC
+
+#else
+	if (game.Version == GAME_V1_0)
+	{
+		injector::WriteMemory(0x43882E + 2, NumMainScripts, true);
+
+		injector::WriteMemory(0x438872 + 1, MainScriptSize, true);
+		injector::WriteMemory(0x4396B9 + 1, MainScriptSize, true);
+		injector::WriteMemory(0x43A4CD + 1, MainScriptSize, true);
+		injector::WriteMemory(0x43A50F + 1, MainScriptSize, true);
+		injector::WriteMemory(0x43A706 + 1, MainScriptSize, true);
+		injector::WriteMemory(0x588E42 + 1, MainScriptSize, true);
+
+		//injector::WriteMemory(0x438809, &ScriptsArray[0], true);
+		injector::WriteMemory(0x588E28 + 1, MissionScriptSize, true);
+
+		injector::WriteMemory(0x4387F0 + 1, ScriptSpaceSize, true);
+
+		aScriptSpace.resize(ScriptSpaceSize + 64);
+		injector::WriteMemory(0x429081, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4290F1, &aScriptSpace[0], true);
+		injector::WriteMemory(0x429172, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4291BC, &aScriptSpace[0], true);
+		injector::WriteMemory(0x438301, &aScriptSpace[0], true);
+		injector::WriteMemory(0x438324, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x43832B, &aScriptSpace[0], true);
+		injector::WriteMemory(0x438332, &aScriptSpace[0] + 0x2, true);
+		injector::WriteMemory(0x43833E, &aScriptSpace[0], true);
+		injector::WriteMemory(0x438368, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x43836F, &aScriptSpace[0], true);
+		injector::WriteMemory(0x438383, &aScriptSpace[0], true);
+		injector::WriteMemory(0x43839A, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x4383A1, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4383C4, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4383E2, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x4383E9, &aScriptSpace[0], true);
+		injector::WriteMemory(0x438409, &aScriptSpace[0], true);
+		injector::WriteMemory(0x438410, &aScriptSpace[0], true);
+		injector::WriteMemory(0x438462, &aScriptSpace[0], true);
+		injector::WriteMemory(0x43848E, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x438495, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4384A6, &aScriptSpace[0] + 0x2, true);
+		injector::WriteMemory(0x4384B4, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4384D0, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4384D7, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x4384E6, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4384FA, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x438501, &aScriptSpace[0], true);
+		injector::WriteMemory(0x43851E, &aScriptSpace[0], true);
+		injector::WriteMemory(0x438535, &aScriptSpace[0], true);
+		injector::WriteMemory(0x43853C, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x438557, &aScriptSpace[0], true);
+		injector::WriteMemory(0x43855F, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4385B6, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4385D5, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x4385DC, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4385F7, &aScriptSpace[0], true);
+		injector::WriteMemory(0x438604, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x43860B, &aScriptSpace[0], true);
+		injector::WriteMemory(0x438641, &aScriptSpace[0], true);
+		injector::WriteMemory(0x438667, &aScriptSpace[0], true);
+		injector::WriteMemory(0x43866E, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x438692, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x438699, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4386AA, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4387A3, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4387AD, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4387B7, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4387C1, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4387CB, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4387D5, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4387DF, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4387EC, &aScriptSpace[0], true);
+		injector::WriteMemory(0x438878, &aScriptSpace[0], true);
+		injector::WriteMemory(0x43941A, &aScriptSpace[0], true);
+		injector::WriteMemory(0x43950D, &aScriptSpace[0], true);
+		injector::WriteMemory(0x439514, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x43A589, &aScriptSpace[0], true);
+		injector::WriteMemory(0x43A5BF, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x43A5C6, &aScriptSpace[0], true);
+		injector::WriteMemory(0x43A5D2, &aScriptSpace[0] + 0x2, true);
+		injector::WriteMemory(0x43A5DB, &aScriptSpace[0], true);
+		injector::WriteMemory(0x43A5FD, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x43A604, &aScriptSpace[0], true);
+		injector::WriteMemory(0x43A616, &aScriptSpace[0], true);
+		injector::WriteMemory(0x43A627, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x43A62E, &aScriptSpace[0], true);
+		injector::WriteMemory(0x43A647, &aScriptSpace[0], true);
+		injector::WriteMemory(0x43A660, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x43A667, &aScriptSpace[0], true);
+		injector::WriteMemory(0x43A681, &aScriptSpace[0], true);
+		injector::WriteMemory(0x43A688, &aScriptSpace[0], true);
+		injector::WriteMemory(0x43A6B8, &aScriptSpace[0], true);
+		injector::WriteMemory(0x43D074, &aScriptSpace[0], true);
+		injector::WriteMemory(0x43D0C0, &aScriptSpace[0], true);
+		injector::WriteMemory(0x43D10C, &aScriptSpace[0], true);
+		injector::WriteMemory(0x43D158, &aScriptSpace[0], true);
+		injector::WriteMemory(0x43E3B0, &aScriptSpace[0], true);
+		injector::WriteMemory(0x43F12B, &aScriptSpace[0], true);
+		injector::WriteMemory(0x43F188, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x43F18F, &aScriptSpace[0], true);
+		injector::WriteMemory(0x43F1C3, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x43F1CA, &aScriptSpace[0], true);
+		injector::WriteMemory(0x43F1FC, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x43F203, &aScriptSpace[0], true);
+		injector::WriteMemory(0x43F24C, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x43F253, &aScriptSpace[0], true);
+		injector::WriteMemory(0x43F27D, &aScriptSpace[0], true);
+		injector::WriteMemory(0x43F391, &aScriptSpace[0], true);
+		injector::WriteMemory(0x43F43F, &aScriptSpace[0], true);
+		injector::WriteMemory(0x43F4BB, &aScriptSpace[0], true);
+		injector::WriteMemory(0x43F65D, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44059F, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x4405A6, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4405DF, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x4405E6, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4423A1, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4423FD, &aScriptSpace[0], true);
+		injector::WriteMemory(0x442459, &aScriptSpace[0], true);
+		injector::WriteMemory(0x442AFF, &aScriptSpace[0], true);
+		injector::WriteMemory(0x442B64, &aScriptSpace[0], true);
+		injector::WriteMemory(0x443438, &aScriptSpace[0], true);
+		injector::WriteMemory(0x443483, &aScriptSpace[0], true);
+		injector::WriteMemory(0x444282, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4446B7, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44471E, &aScriptSpace[0], true);
+		injector::WriteMemory(0x446833, &aScriptSpace[0], true);
+		injector::WriteMemory(0x446D53, &aScriptSpace[0], true);
+		injector::WriteMemory(0x446DF3, &aScriptSpace[0], true);
+		injector::WriteMemory(0x447476, &aScriptSpace[0], true);
+		injector::WriteMemory(0x447558, &aScriptSpace[0], true);
+		injector::WriteMemory(0x447898, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4478F9, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44795A, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4479BB, &aScriptSpace[0], true);
+		injector::WriteMemory(0x447A20, &aScriptSpace[0], true);
+		injector::WriteMemory(0x447A85, &aScriptSpace[0], true);
+		injector::WriteMemory(0x447AEF, &aScriptSpace[0], true);
+		injector::WriteMemory(0x447B59, &aScriptSpace[0], true);
+		injector::WriteMemory(0x447BC7, &aScriptSpace[0], true);
+		injector::WriteMemory(0x447C35, &aScriptSpace[0], true);
+		injector::WriteMemory(0x447CA8, &aScriptSpace[0], true);
+		injector::WriteMemory(0x447F96, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4484ED, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4487E2, &aScriptSpace[0], true);
+		injector::WriteMemory(0x449214, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44AB21, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44AD7F, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44B986, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44BBE7, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44BC62, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44BCE1, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44BD65, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44BDED, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44BF56, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44BF6F, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44C316, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44C349, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44C3D2, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44C405, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44C48E, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44C4C1, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44C4FC, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44C584, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44C5B7, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44C5F2, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44C67A, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44C6AD, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44C6E8, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44C723, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44C7AA, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44C7DD, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44C818, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44C853, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44CBB0, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44CBC3, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44CC37, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44CC64, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44CC9B, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44CCD4, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44CD0B, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44CD8A, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44CDB7, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44CDEE, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44CE25, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44CE5E, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44CEDD, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44CF0A, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44CF41, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44CF78, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44CFB1, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44CFEA, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44D06B, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44D098, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44D0CF, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44D106, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44D13F, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44D176, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44D5E0, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44D68D, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44DFE0, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44EBFA, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44EC07, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x44EC0E, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44EC32, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44EC86, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x44EC8D, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44ECB2, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44ECC9, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44F216, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44F45D, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44F492, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44F90A, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44F930, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44F956, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44F97C, &aScriptSpace[0], true);
+		injector::WriteMemory(0x44F9AC, &aScriptSpace[0], true);
+		injector::WriteMemory(0x452A54, &aScriptSpace[0], true);
+		injector::WriteMemory(0x452B73, &aScriptSpace[0], true);
+		injector::WriteMemory(0x452BCB, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4535E3, &aScriptSpace[0] + 0x3, true);
+		injector::WriteMemory(0x4535FD, &aScriptSpace[0] + 0x4, true);
+		injector::WriteMemory(0x45361B, &aScriptSpace[0] + 0x5, true);
+		injector::WriteMemory(0x453629, &aScriptSpace[0] + 0x6, true);
+		injector::WriteMemory(0x4536B4, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4536BD, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4536C9, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4536D5, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4536E1, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4536ED, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4536F9, &aScriptSpace[0], true);
+		injector::WriteMemory(0x453708, &aScriptSpace[0], true);
+		injector::WriteMemory(0x453722, &aScriptSpace[0], true);
+		injector::WriteMemory(0x453B78, &aScriptSpace[0], true);
+		injector::WriteMemory(0x453B81, &aScriptSpace[0], true);
+		injector::WriteMemory(0x453B8D, &aScriptSpace[0], true);
+		injector::WriteMemory(0x453B99, &aScriptSpace[0], true);
+		injector::WriteMemory(0x453BA5, &aScriptSpace[0], true);
+		injector::WriteMemory(0x453BB1, &aScriptSpace[0], true);
+		injector::WriteMemory(0x453BBD, &aScriptSpace[0], true);
+		injector::WriteMemory(0x453BD8, &aScriptSpace[0], true);
+		injector::WriteMemory(0x453BE9, &aScriptSpace[0], true);
+		injector::WriteMemory(0x454963, &aScriptSpace[0] + 0x4, true);
+		injector::WriteMemory(0x45496A, &aScriptSpace[0] + 0x3, true);
+		injector::WriteMemory(0x454971, &aScriptSpace[0] + 0x5, true);
+		injector::WriteMemory(0x45497F, &aScriptSpace[0] + 0x6, true);
+		injector::WriteMemory(0x45499D, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4549A4, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x4549D1, &aScriptSpace[0], true);
+		injector::WriteMemory(0x4549EC, &aScriptSpace[0], true);
+		injector::WriteMemory(0x454A07, &aScriptSpace[0], true);
+		injector::WriteMemory(0x454A21, &aScriptSpace[0], true);
+		injector::WriteMemory(0x454A3B, &aScriptSpace[0], true);
+		injector::WriteMemory(0x454A55, &aScriptSpace[0], true);
+		injector::WriteMemory(0x454A6F, &aScriptSpace[0], true);
+		injector::WriteMemory(0x454A89, &aScriptSpace[0], true);
+		injector::WriteMemory(0x454BC3, &aScriptSpace[0] + 0x4, true);
+		injector::WriteMemory(0x454BCC, &aScriptSpace[0] + 0x3, true);
+		injector::WriteMemory(0x454BD7, &aScriptSpace[0] + 0x5, true);
+		injector::WriteMemory(0x454BE1, &aScriptSpace[0] + 0x6, true);
+		injector::WriteMemory(0x454BFD, &aScriptSpace[0], true);
+		injector::WriteMemory(0x454C04, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x454C10, &aScriptSpace[0], true);
+		injector::WriteMemory(0x454C1C, &aScriptSpace[0] + 0x2, true);
+		injector::WriteMemory(0x454C36, &aScriptSpace[0], true);
+		injector::WriteMemory(0x454C3D, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x454C4C, &aScriptSpace[0] + 0x2, true);
+		injector::WriteMemory(0x454C55, &aScriptSpace[0], true);
+		injector::WriteMemory(0x454C74, &aScriptSpace[0], true);
+		injector::WriteMemory(0x454C7B, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x454C8A, &aScriptSpace[0] + 0x2, true);
+		injector::WriteMemory(0x454C93, &aScriptSpace[0], true);
+		injector::WriteMemory(0x454CB5, &aScriptSpace[0], true);
+		injector::WriteMemory(0x454CBC, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x454CE6, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x454CED, &aScriptSpace[0], true);
+		injector::WriteMemory(0x454CF4, &aScriptSpace[0] + 0x2, true);
+		injector::WriteMemory(0x454D02, &aScriptSpace[0], true);
+		injector::WriteMemory(0x454D26, &aScriptSpace[0], true);
+		injector::WriteMemory(0x454D30, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x454D3F, &aScriptSpace[0] + 0x2, true);
+		injector::WriteMemory(0x454D4D, &aScriptSpace[0], true);
+		injector::WriteMemory(0x454D66, &aScriptSpace[0], true);
+		injector::WriteMemory(0x454D70, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x454D7F, &aScriptSpace[0] + 0x2, true);
+		injector::WriteMemory(0x454D8D, &aScriptSpace[0], true);
+		injector::WriteMemory(0x454DA6, &aScriptSpace[0], true);
+		injector::WriteMemory(0x454DB0, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x454DBF, &aScriptSpace[0] + 0x2, true);
+		injector::WriteMemory(0x454DCD, &aScriptSpace[0], true);
+		injector::WriteMemory(0x454DE6, &aScriptSpace[0], true);
+		injector::WriteMemory(0x454DF0, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x454DFF, &aScriptSpace[0] + 0x2, true);
+		injector::WriteMemory(0x454E0D, &aScriptSpace[0], true);
+		injector::WriteMemory(0x454E26, &aScriptSpace[0], true);
+		injector::WriteMemory(0x454E30, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x454E3F, &aScriptSpace[0] + 0x2, true);
+		injector::WriteMemory(0x454E4D, &aScriptSpace[0], true);
+		injector::WriteMemory(0x454E66, &aScriptSpace[0], true);
+		injector::WriteMemory(0x454E70, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x454E7F, &aScriptSpace[0] + 0x2, true);
+		injector::WriteMemory(0x454E8D, &aScriptSpace[0], true);
+		injector::WriteMemory(0x454EA6, &aScriptSpace[0], true);
+		injector::WriteMemory(0x454EB0, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x454EBF, &aScriptSpace[0] + 0x2, true);
+		injector::WriteMemory(0x454ECD, &aScriptSpace[0], true);
+		injector::WriteMemory(0x454EF3, &aScriptSpace[0] + 0x1, true);
+		injector::WriteMemory(0x454EFA, &aScriptSpace[0], true);
+		injector::WriteMemory(0x454F06, &aScriptSpace[0] + 0x2, true);
+		injector::WriteMemory(0x454F14, &aScriptSpace[0], true);
+		injector::WriteMemory(0x588E2E, (uintptr_t)&aScriptSpace[0] + MainScriptSize, true);
+		injector::WriteMemory(0x589DFE, &aScriptSpace[0], true);
+		injector::WriteMemory(0x58A288, &aScriptSpace[0], true);
+		injector::WriteMemory(0x58A34F, &aScriptSpace[0], true);
+		injector::WriteMemory(0x58A400, &aScriptSpace[0], true);
+		injector::WriteMemory(0x58AECB, &aScriptSpace[0], true);
+	}
+#endif
 }

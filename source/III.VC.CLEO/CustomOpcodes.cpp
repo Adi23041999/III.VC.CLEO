@@ -566,7 +566,7 @@ eOpcodeResult CustomOpcodes::GET_NAMED_THREAD_POINTER(CScript *script)
 	}
 	if(!result_ptr)
 	{
-		for(int i = 0; i < 128; i++)
+		for(int i = 0; i < GtaGame::ScriptSize::NumMainScripts; i++)
 		{
 			if(!_stricmp(scriptMgr.gameScripts[i].m_acName, name))
 			{
@@ -1043,14 +1043,8 @@ eOpcodeResult CustomOpcodes::GET_LABEL_OFFSET(CScript *script)
 		if(script->m_nScriptType == SCRIPT_TYPE_CUSTOM)
 			game.Scripts.Params[0].pVar = &script->m_pCodeData[-game.Scripts.Params[0].nVar];
 		else
-		{
-#if CLEO_VC
-			game.Scripts.Params[0].pVar = &game.Scripts.Space[0x370E8 - game.Scripts.Params[0].nVar];
-#else
-			game.Scripts.Params[0].pVar = &game.Scripts.Space[0x20000 - game.Scripts.Params[0].nVar];
-#endif
-			
-		}
+			game.Scripts.Params[0].pVar = &game.Scripts.Space[GtaGame::ScriptSize::MainScriptSize - game.Scripts.Params[0].nVar];	
+
 	}
 	script->Store(1);
 	return OR_CONTINUE;

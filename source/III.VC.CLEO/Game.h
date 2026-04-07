@@ -3,6 +3,7 @@
 #include "OpcodesSystem.h"
 #include <set>
 #include <algorithm>
+#include <vector>
 
 enum eGameVersion
 {
@@ -151,6 +152,19 @@ public:
 	static void OnGameSaveScripts(int a, int b);
 
 	static void OnMenuDrawing(float x, float y, wchar_t *text);
+
+	struct ScriptSize
+	{
+		static int NumMainScripts;
+		static int NumMissionScripts;
+		static int MainScriptSize;
+		static int MissionScriptSize;
+		static int ScriptSpaceSize;
+		static std::vector<char> aScriptSpace;
+
+		static void SetupScriptSizes();
+		static void PatchScriptSizes();
+	};
 
 	struct GamePool
 	{
