@@ -292,26 +292,41 @@ eOpcodeResult CScript::ProcessOneCommand()
 {
 	*game.Scripts.pNumOpcodesExecuted += 1;
 	unsigned short id = *(unsigned short *)&game.Scripts.Space[this->m_dwIp] & 0x7FFF;
+
+
 	if(*(unsigned short *)&game.Scripts.Space[this->m_dwIp] & 0x8000)
 		this->m_bNotFlag = true;
 	else
 		this->m_bNotFlag = false;
 	this->m_dwIp += 2;
-	// check for custom opcodes here
-	if(Opcodes::functions[id])
-	{
-		// call custom opcode
-		LOGL(LOG_PRIORITY_OPCODE_ID, "%s custom opcode %04X", this->m_acName, id);
-		return Opcodes::functions[id](this);
+
+#ifndef NDEBUG
+	__try {
+#endif
+		// check for custom opcodes here
+		if(Opcodes::functions[id])
+		{
+			// call custom opcode
+			LOGL(LOG_PRIORITY_OPCODE_ID, "%s custom opcode %04X", this->m_acName, id);
+			return Opcodes::functions[id](this);
+		}
+		else if(id >= CUSTOM_OPCODE_START_ID)
+		{
+			LOGL(LOG_PRIORITY_ALWAYS, "Error (incorrect opcode): %s, %04X", this->m_acName, id);
+			Error("Incorrect opcode ID: \"%hs\" - %04X", this->m_acName, id);
+			return OR_UNDEFINED;
+		}
+		// call default opcode
+		LOGL(LOG_PRIORITY_OPCODE_ID, "%s opcode %04X", this->m_acName, id);
+		eOpcodeResult result = game.Scripts.OpcodeHandlers[id / 100](this, id);
+		return result;
+#ifndef NDEBUG
 	}
-	else if(id >= CUSTOM_OPCODE_START_ID)
-	{
-		LOGL(LOG_PRIORITY_ALWAYS, "Error (incorrect opcode): %s, %04X", this->m_acName, id);
-		Error("Incorrect opcode ID: %04X", id);
+	__except (EXCEPTION_EXECUTE_HANDLER) {
+		Error("Unhandled exception %X when processing script \"%hs\", command executed %04X", GetExceptionCode(), this->m_acName, id);
+
+		this->m_dwWakeTime = INT_MAX;
 		return OR_UNDEFINED;
 	}
-	// call default opcode
-	LOGL(LOG_PRIORITY_OPCODE_ID, "%s opcode %04X", this->m_acName, id);
-	eOpcodeResult result = game.Scripts.OpcodeHandlers[id / 100](this, id);
-	return result;
+#endif
 }
