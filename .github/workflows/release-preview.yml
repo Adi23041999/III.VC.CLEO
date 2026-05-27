@@ -1,0 +1,147 @@
+name: Release Preview
+
+on:
+  workflow_dispatch: # manually
+
+  push:
+    paths-ignore:
+      - '.github/**'
+      - 'tests/**'
+
+permissions:
+  contents: write
+
+jobs:
+  Release_Preview:
+    if: (github.ref_type != 'tag' || !endsWith(github.ref, '/preview')) && (github.ref_type != 'branch' || endsWith(github.ref, '/master')) # ignore 'preview' tag, ignore pushes other than to master
+
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          submodules: "recursive"
+
+      - name: Tag with current commit SHA
+        id: custom_build
+        run: node.exe .github/workflows/tag-custom-build.js
+
+      - name: Detect updates
+        shell: cmd
+        run: |
+          rem Find last tag
+          for /F %%i in ('git describe --tags --abbrev^=0') do (set tag=%%i)
+          if "%tag%"=="" (echo ::error::Last tag not found!& exit 1)
+          if "%tag%"=="preview" (for /F %%i in ('git describe --tags --abbrev^=0 preview^^^^') do set tag=%%i)
+
+          rem Check for commits since the tag
+          for /F %%i in ('git rev-list %tag%..HEAD') do (set commit=%%i)
+
+          if "%commit%"=="" (
+            echo ::notice::No changes since last release found.
+          ) else (
+            echo Preview build including new features waiting for release.  >>preview_changes.md
+            git show -s --date=format:^"Date: ```%%Y-%%m-%%d```  ^" --format=%%cd>>preview_changes.md
+            git show -s --format=^"Hash: ```%%h```  ^">>preview_changes.md
+            echo [**Download GTA III**]^(${{github.server_url}}/${{github.repository}}/releases/download/preview/III.CLEO-v${{steps.custom_build.outputs.version}}-${{steps.custom_build.outputs.sha}}.zip^)  >>preview_changes.md
+            echo [**Download GTA VC**]^(${{github.server_url}}/${{github.repository}}/releases/download/preview/VC.CLEO-v${{steps.custom_build.outputs.version}}-${{steps.custom_build.outputs.sha}}.zip^)  >>preview_changes.md
+            echo;>>preview_changes.md
+            echo ^<details^>>>preview_changes.md
+            echo   ^<summary^>Changes since %tag%^</summary^>>>preview_changes.md
+            echo;>>preview_changes.md
+            git show -s --format="  * %%s" %tag%..HEAD>>preview_changes.md
+            echo   [View commits]^(${{ github.server_url }}/${{ github.repository }}/compare/%tag%...preview^)>>preview_changes.md
+            echo;>>preview_changes.md
+            echo ^</details^>>>preview_changes.md
+            type preview_changes.md
+          )
+
+      - name: Set up MsBuild
+        if: ${{ hashFiles('preview_changes.md') != '' }}
+        uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce # v2.0.0
+
+      - name: Generate project files
+        if: ${{ hashFiles('preview_changes.md') != '' }}
+        shell: cmd
+        run: premake5 vs2022
+
+      - name: Build Core
+        if: ${{ hashFiles('preview_changes.md') != '' }}
+        shell: cmd
+        run: |
+          @echo off
+          set PLUGIN_SDK_DIR=%GITHUB_WORKSPACE%\third-party\plugin-sdk
+          msbuild "build/III.VC.CLEO.sln" /property:Configuration=Release /property:Platform=Win32 /m /fileLogger1 /fileLoggerParameters1:warningsOnly;errorsOnly;logfile=output.log
+          node .github/workflows/analyze-build-log.js "Core compilation"
+
+      - name: Build SDK
+        if: ${{ hashFiles('preview_changes.md') != '' }}
+        shell: cmd
+        run: |
+          @echo off
+          set PLUGIN_SDK_DIR=%GITHUB_WORKSPACE%\third-party\plugin-sdk
+          msbuild "build/CLEO_SDK.sln" /property:Configuration=Release /property:Platform=Win32 /m /fileLogger1 /fileLoggerParameters1:warningsOnly;errorsOnly;logfile=output.log
+          node .github/workflows/analyze-build-log.js "SDK compilation"
+
+      - name: Gather output files
+        if: ${{ hashFiles('preview_changes.md') != '' }}
+        shell: cmd
+        run: |
+          @echo Create directories
+          mkdir .output\III\CLEO_Readme
+          mkdir .output\VC\CLEO_Readme
+
+          @echo Copy GTA III files
+          copy Changelog.md .output\III\CLEO_Readme\Changelog.md
+          copy Readme_III.md .output\III\CLEO_Readme\Readme.md
+          copy preview_changes.md .output\III\CLEO_Readme\Preview.md
+          copy bin\III.CLEO.asi .output\III\III.CLEO.asi
+          xcopy /E /I bin\CLEO .output\III\CLEO
+          if exist .output\III\CLEO\CLEO_PLUGINS\VC* del /Q .output\III\CLEO\CLEO_PLUGINS\VC*
+
+          @echo Copy GTA VC files
+          copy Changelog.md .output\VC\CLEO_Readme\Changelog.md
+          copy Readme_VC.md .output\VC\CLEO_Readme\Readme.md
+          copy preview_changes.md .output\VC\CLEO_Readme\Preview.md
+          copy bin\VC.CLEO.asi .output\VC\VC.CLEO.asi
+          xcopy /E /I bin\CLEO .output\VC\CLEO
+          if exist .output\VC\CLEO\CLEO_PLUGINS\III* del /Q .output\VC\CLEO\CLEO_PLUGINS\III*
+
+      - name: Pack archive III
+        if: ${{ hashFiles('preview_changes.md') != '' }}
+        uses: thedoctor0/zip-release@b57d897cb5d60cb78b51a507f63fa184cfe35554 # 0.7.6
+        with:
+          type: 'zip'
+          filename: 'III.CLEO-v${{steps.custom_build.outputs.version}}-${{steps.custom_build.outputs.sha}}.zip'
+          directory: '.output/III'
+          exclusions: '*.pdb *.exp *.lib'
+          custom: '-mm=Deflate -mfb=258 -mpass=15'
+
+      - name: Pack archive VC
+        if: ${{ hashFiles('preview_changes.md') != '' }}
+        uses: thedoctor0/zip-release@b57d897cb5d60cb78b51a507f63fa184cfe35554 # 0.7.6
+        with:
+          type: 'zip'
+          filename: 'VC.CLEO-v${{steps.custom_build.outputs.version}}-${{steps.custom_build.outputs.sha}}.zip'
+          directory: '.output/VC'
+          exclusions: '*.pdb *.exp *.lib'
+          custom: '-mm=Deflate -mfb=258 -mpass=15'
+
+      - name: Delete 'preview' release
+        if: ${{ hashFiles('preview_changes.md') != '' }}
+        run: gh release delete preview --cleanup-tag --yes
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create 'preview' release
+        if: ${{ hashFiles('preview_changes.md') != '' }}
+        uses: ncipollo/release-action@440c8c1cb0ed28b9f43e4d1d670870f059653174 # v1.16.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          name: 'Next version preview'
+          tag: 'preview'
+          prerelease: true
+          bodyFile: 'preview_changes.md'
+          artifacts: '.output/III/*.zip,.output/VC/*.zip'
