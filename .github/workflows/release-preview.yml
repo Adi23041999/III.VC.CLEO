@@ -71,7 +71,6 @@ jobs:
         shell: cmd
         run: |
           @echo off
-          set PLUGIN_SDK_DIR=%GITHUB_WORKSPACE%\third-party\plugin-sdk
           msbuild "build/III.VC.CLEO.sln" /property:Configuration=Release /property:Platform=Win32 /m /fileLogger1 /fileLoggerParameters1:warningsOnly;errorsOnly;logfile=output.log
           node .github/workflows/analyze-build-log.js "Core compilation"
 
@@ -80,7 +79,6 @@ jobs:
         shell: cmd
         run: |
           @echo off
-          set PLUGIN_SDK_DIR=%GITHUB_WORKSPACE%\third-party\plugin-sdk
           msbuild "build/CLEO_SDK.sln" /property:Configuration=Release /property:Platform=Win32 /m /fileLogger1 /fileLoggerParameters1:warningsOnly;errorsOnly;logfile=output.log
           node .github/workflows/analyze-build-log.js "SDK compilation"
 
@@ -93,7 +91,7 @@ jobs:
           mkdir .output\VC\CLEO_Readme
 
           @echo Copy GTA III files
-          copy Changelog.md .output\III\CLEO_Readme\Changelog.md
+          copy CHANGELOG.md .output\III\CLEO_Readme\CHANGELOG.md
           copy Readme_III.md .output\III\CLEO_Readme\Readme.md
           copy preview_changes.md .output\III\CLEO_Readme\Preview.md
           copy bin\III.CLEO.asi .output\III\III.CLEO.asi
@@ -101,7 +99,7 @@ jobs:
           if exist .output\III\CLEO\CLEO_PLUGINS\VC* del /Q .output\III\CLEO\CLEO_PLUGINS\VC*
 
           @echo Copy GTA VC files
-          copy Changelog.md .output\VC\CLEO_Readme\Changelog.md
+          copy CHANGELOG.md .output\VC\CLEO_Readme\CHANGELOG.md
           copy Readme_VC.md .output\VC\CLEO_Readme\Readme.md
           copy preview_changes.md .output\VC\CLEO_Readme\Preview.md
           copy bin\VC.CLEO.asi .output\VC\VC.CLEO.asi
