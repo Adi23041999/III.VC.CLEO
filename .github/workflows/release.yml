@@ -100,13 +100,13 @@ jobs:
           # copy CHANGELOG.md             .output\III\CLEO_Readme\CHANGELOG.md
           # copy Readme_III.md            .output\III\CLEO_Readme\Readme.md
           copy bin\III.CLEO.asi         .output\III\III.CLEO.asi
-          for %%f in (bin\CLEO\CLEO_PLUGINS\III.*) do copy %%f .output\III\CLEO\CLEO_PLUGINS\
+          for %%f in (bin\CLEO\CLEO_PLUGINS\III.*.cleo) do copy %%f .output\III\CLEO\CLEO_PLUGINS\
 
           @echo Copy GTA VC files
           # copy CHANGELOG.md             .output\VC\CLEO_Readme\CHANGELOG.md
           # copy Readme_VC.md             .output\VC\CLEO_Readme\Readme.md
           copy bin\VC.CLEO.asi          .output\VC\VC.CLEO.asi
-          for %%f in (bin\CLEO\CLEO_PLUGINS\VC.*) do copy %%f .output\VC\CLEO\CLEO_PLUGINS\
+          for %%f in (bin\CLEO\CLEO_PLUGINS\VC.*.cleo) do copy %%f .output\VC\CLEO\CLEO_PLUGINS\
 
       - name: Pack archive - III.CLEO
         uses: ThirteenAG/zip-release@a24011d8d445e4da5935a7e73c1f98e22a439464 # master
