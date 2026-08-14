@@ -299,6 +299,13 @@ eOpcodeResult CScript::ProcessOneCommand()
 	else
 		this->m_bNotFlag = false;
 	this->m_dwIp += 2;
+	// check for custom opcodes here
+	if(Opcodes::functions[id])
+	{
+		// call custom opcode
+		LOGL(LOG_PRIORITY_OPCODE_ID, "%s custom opcode %04X", this->m_acName, id);
+		return Opcodes::functions[id](this);
+	}
 
 	const size_t handlerIndex = id / 100;
 	if(handlerIndex >= game.Scripts.OpcodeHandlers.size())
